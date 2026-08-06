@@ -1,0 +1,201 @@
+// FISSI-PORTAL Database Schema
+// Faith International Secondary School Itobe - School Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  CASHIER
+  ADMIN
+}
+
+enum SignupStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ScoreStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum Term {
+  FIRST
+  SECOND
+  THIRD
+}
+
+// ---------- USERS & AUTH ----------
+
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  password      String
+  fullName      String
+  role          Role
+  signupStatus  SignupStatus @default(PENDING)
+  phone         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Relations
+  studentProfile   Student?          @relation("StudentUser")
+  teacherProfile   Teacher?          @relation("TeacherUser")
+  submittedScores  Score[]           @relation("ScoreSubmittedBy")
+  reviewedScores   Score[]           @relation("ScoreReviewedBy")
+  recordedFees     FeePayment[]      @relation("FeeRecordedBy")
+
+  @@index([email])
+  @@index([role, signupStatus])
+}
+
+model Teacher {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation("TeacherUser", fields: [userId], references: [id], onDelete: Cascade)
+  subjects    TeacherSubject[]
+  createdAt   DateTime @default(now())
+}
+
+// ---------- ACADEMIC STRUCTURE ----------
+
+model ClassLevel {
+  id        String    @id @default(uuid())
+  name      String    @unique // e.g. "JSS1", "JSS2", "SS3"
+  students  Student[]
+  subjects  ClassSubject[]
+  createdAt DateTime  @default(now())
+}
+
+model Subject {
+  id             String           @id @default(uuid())
+  name           String           @unique
+  classSubjects  ClassSubject[]
+  teacherSubjects TeacherSubject[]
+  scores         Score[]
+  createdAt      DateTime         @default(now())
+}
+
+// Which subjects are taught in which class
+model ClassSubject {
+  id           String     @id @default(uuid())
+  classLevelId String
+  classLevel   ClassLevel @relation(fields: [classLevelId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([classLevelId, subjectId])
+}
+
+// Which teacher teaches which subject (can be tied to a class too)
+model TeacherSubject {
+  id           String     @id @default(uuid())
+  teacherId    String
+  teacher      Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, subjectId])
+}
+
+// ---------- STUDENTS ----------
+
+model Student {
+  id              String     @id @default(uuid())
+  userId          String?    @unique
+  user            User?      @relation("StudentUser", fields: [userId], references: [id], onDelete: SetNull)
+  admissionNumber String     @unique
+  fullName        String
+  classLevelId    String
+  classLevel      ClassLevel @relation(fields: [classLevelId], references: [id])
+  gender          String?
+  dateOfBirth     DateTime?
+  guardianName    String?
+  guardianPhone   String?
+  passportPhotoUrl String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  scores          Score[]
+  feePayments     FeePayment[]
+  feeAdjustments  FeeAdjustment[]
+
+  @@index([classLevelId])
+  @@index([admissionNumber])
+}
+
+// ---------- SCORES & GRADING ----------
+
+model Score {
+  id            String      @id @default(uuid())
+  studentId     String
+  student       Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId     String
+  subject       Subject     @relation(fields: [subjectId], references: [id])
+  term          Term
+  session       String      // e.g. "2025/2026"
+  ca1           Float       @default(0) // out of 20
+  ca2           Float       @default(0) // out of 20
+  exam          Float       @default(0) // out of 60
+  total         Float       @default(0) // computed: ca1+ca2+exam
+  grade         String?     // computed: A1, B2, ... F9 (WAEC style)
+
+  status        ScoreStatus @default(PENDING)
+
+  submittedById String
+  submittedBy   User        @relation("ScoreSubmittedBy", fields: [submittedById], references: [id])
+  reviewedById  String?
+  reviewedBy    User?       @relation("ScoreReviewedBy", fields: [reviewedById], references: [id])
+  reviewNote    String?
+
+  locked        Boolean     @default(false) // true once approved, only admin can override
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([studentId, subjectId, term, session])
+  @@index([status])
+  @@index([term, session])
+}
+
+// ---------- FEES ----------
+
+model FeePayment {
+  id            String   @id @default(uuid())
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount        Float
+  term          Term
+  session       String
+  method        String   @default("CASH")
+  reference     String?
+  recordedById  String
+  recordedBy    User     @relation("FeeRecordedBy", fields: [recordedById], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([studentId])
+  @@index([term, session])
+}
+
+model FeeAdjustment {
+  id          String   @id @default(uuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  label       String   // e.g. "Sibling Discount", "Late Registration Charge"
+  amount      Float    // positive = charge, negative = discount
+  term        Term
+  session     String
+  createdAt   DateTime @default(now())
+
+  @@index([studentId])
+}
