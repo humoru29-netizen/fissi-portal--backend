@@ -88,7 +88,7 @@ async function decideScore(req, res) {
   }
 }
 
-async function updateScore(req, res) {
+async function editScore(req, res) {
   try {
     const { id } = req.params;
     const { ca1, ca2, exam } = req.body;
@@ -117,4 +117,4 @@ async function deleteScore(req, res) {
   }
 }
 
-module.exports = { submitScores, getPendingScores, decideScore, updateScore, deleteScore };
+module.exports = { submitScores, getPendingScores, decideScore, editScore, deleteScore };
