@@ -14,5 +14,5 @@ router.post('/students', ctrl.addStudent);
 router.post('/students/bulk', ctrl.bulkAddStudents);
 router.patch('/students/:id', ctrl.updateStudent);
 router.delete('/students/:id', ctrl.deleteStudent);
-
+router.get('/users', ctrl.listUsers);
 module.exports = router;
