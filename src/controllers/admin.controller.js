@@ -116,4 +116,5 @@ module.exports = {
   updateStudent,
   deleteStudent,
   bulkAddStudents,
+listUsers,
 };
